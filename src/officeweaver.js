@@ -1,0 +1,353 @@
+(function (root, factory) {
+    var api = factory();
+    if (typeof module === 'object' && module.exports) {
+        module.exports = api;
+    }
+    root.OfficeWeaver = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+    'use strict';
+
+    var OfficeWeaver = {
+        version: '0.1.0',
+        resolveVersionFamily: resolveVersionFamily,
+        normalizeSpreadsheetMacroCode: normalizeSpreadsheetMacroCode,
+        buildSpreadsheetMacroCommand: buildSpreadsheetMacroCommand,
+        createRuntime: function (options) {
+            return {
+                engine: (options && options.engine) || 'onlyoffice',
+                version: (options && options.version) || '',
+                kind: (options && options.kind) || '',
+                versionFamily: resolveVersionFamily(
+                    (options && options.engine) || 'onlyoffice',
+                    (options && options.version) || '')
+            };
+        }
+    };
+
+    function resolveVersionFamily(engine, version) {
+        var normalizedEngine = String(engine || '').toLowerCase();
+        var normalizedVersion = String(version || '').trim();
+
+        if (normalizedEngine === 'onlyoffice') {
+            if (/^9\.3(\.|$)/.test(normalizedVersion) || normalizedVersion === '') return '9.3';
+            if (/^9\.4(\.|$)/.test(normalizedVersion)) return '9.4';
+        }
+
+        if (normalizedEngine === 'hancom') {
+            if (/^3\.2(\.|$)/.test(normalizedVersion)) return '3.2';
+            if (/^3\.5(\.|$)/.test(normalizedVersion) || normalizedVersion === '') return '3.5';
+        }
+
+        return normalizedVersion || 'unknown';
+    }
+
+    function normalizeSpreadsheetMacroCode(codeText) {
+        return String(codeText || '')
+            .replace(/\.SetFontBold\s*\(/g, '.SetBold(')
+            .replace(/\.SetFontItalic\s*\(/g, '.SetItalic(')
+            .replace(/\.SetFontUnderline\s*\(/g, '.SetUnderline(')
+            .replace(/\.SetHorizontalAlignment\s*\(/g, '.SetAlignHorizontal(')
+            .replace(/\.SetVerticalAlignment\s*\(/g, '.SetAlignVertical(')
+            .replace(/\.SetWrapText\s*\(/g, '.SetWrap(')
+            .replace(/\.SetBackgroundColor\s*\(/g, '.SetFillColor(');
+    }
+
+    function buildSpreadsheetMacroCommand(codeText, options) {
+        var settings = options || {};
+        var engine = String(settings.engine || 'onlyoffice').toLowerCase();
+        var version = String(settings.version || '9.3.1.2');
+        var versionFamily = resolveVersionFamily(engine, version);
+
+        if (engine !== 'onlyoffice') {
+            throw new Error('unsupported_engine_for_spreadsheet:' + engine);
+        }
+
+        if (versionFamily !== '9.3' && versionFamily !== '9.4') {
+            throw new Error('unsupported_onlyoffice_spreadsheet_version:' + version);
+        }
+
+        var body = [
+            '"use strict";',
+            'var __owEngine = "onlyoffice";',
+            'var __owVersion = ' + JSON.stringify(version) + ';',
+            'var __owVersionFamily = ' + JSON.stringify(versionFamily) + ';',
+            'var __owOutcomes = [];',
+            'var __owStoppedAt = null;',
+            'function __owCopyOwn(target, source) {',
+            '  if (!source) return target;',
+            '  for (var key in source) {',
+            '    if (Object.prototype.hasOwnProperty.call(source, key) && source[key] !== undefined) target[key] = source[key];',
+            '  }',
+            '  return target;',
+            '}',
+            'function __owSerializable(value) {',
+            '  if (value == null) return value;',
+            '  var t = typeof value;',
+            '  if (t === "string" || t === "number" || t === "boolean") return value;',
+            '  if (Array.isArray(value)) {',
+            '    var arr = [];',
+            '    for (var i = 0; i < value.length; i++) arr.push(__owSerializable(value[i]));',
+            '    return arr;',
+            '  }',
+            '  if (t === "object") {',
+            '    var out = {};',
+            '    for (var key in value) {',
+            '      if (Object.prototype.hasOwnProperty.call(value, key)) {',
+            '        var v = value[key];',
+            '        if (v == null || typeof v === "string" || typeof v === "number" || typeof v === "boolean" || Array.isArray(v)) out[key] = __owSerializable(v);',
+            '      }',
+            '    }',
+            '    return out;',
+            '  }',
+            '  return String(value);',
+            '}',
+            'function __owStep(action, details, fn) {',
+            '  var step = __owOutcomes.length + 1;',
+            '  var base = { step: step, action: String(action || ""), ok: true };',
+            '  __owCopyOwn(base, details);',
+            '  try {',
+            '    var value = fn();',
+            '    if (value && typeof value === "object") {',
+            '      if (Object.prototype.hasOwnProperty.call(value, "evaluated_value")) base.evaluated_value = value.evaluated_value;',
+            '      if (Object.prototype.hasOwnProperty.call(value, "result")) base.result = __owSerializable(value.result);',
+            '    }',
+            '    __owOutcomes.push(base);',
+            '    return value;',
+            '  } catch (err) {',
+            '    base.ok = false;',
+            '    base.name = (err && err.name) ? err.name : "Error";',
+            '    base.error = (err && err.message) ? err.message : String(err);',
+            '    __owOutcomes.push(base);',
+            '    __owStoppedAt = step;',
+            '    throw err;',
+            '  }',
+            '}',
+            'function __owSummaryFromResult(value, fallback) {',
+            '  return value && typeof value.summary === "string" ? value.summary : fallback;',
+            '}',
+            'function __owColorFromHex(hex) {',
+            '  if (hex == null) return null;',
+            '  var h = String(hex).trim().replace("#", "");',
+            '  if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];',
+            '  if (h.length !== 6) throw new Error("invalid_color:" + hex);',
+            '  var r = parseInt(h.substring(0, 2), 16);',
+            '  var g = parseInt(h.substring(2, 4), 16);',
+            '  var b = parseInt(h.substring(4, 6), 16);',
+            '  if (isNaN(r) || isNaN(g) || isNaN(b)) throw new Error("invalid_color:" + hex);',
+            '  return Api.CreateColorFromRGB(r, g, b);',
+            '}',
+            'function __owResolveSheet(name) {',
+            '  if (!name) return Api.GetActiveSheet();',
+            '  var sheets = Api.GetSheets();',
+            '  for (var i = 0; i < sheets.length; i++) {',
+            '    if (sheets[i].GetName() === name) return sheets[i];',
+            '  }',
+            '  throw new Error("sheet_not_found:" + name);',
+            '}',
+            'function __owResolveSheetForView(name) {',
+            '  var ws = __owResolveSheet(name);',
+            '  if (name && ws && typeof ws.SetActive === "function") ws.SetActive();',
+            '  return ws;',
+            '}',
+            'function __owColToNum(col) {',
+            '  var s = String(col).toUpperCase();',
+            '  var n = 0;',
+            '  for (var i = 0; i < s.length; i++) {',
+            '    var c = s.charCodeAt(i);',
+            '    if (c < 65 || c > 90) return NaN;',
+            '    n = n * 26 + (c - 64);',
+            '  }',
+            '  return n;',
+            '}',
+            'function __owNumToCol(num) {',
+            '  var s = "";',
+            '  while (num > 0) {',
+            '    var r = (num - 1) % 26;',
+            '    s = String.fromCharCode(65 + r) + s;',
+            '    num = Math.floor((num - 1) / 26);',
+            '  }',
+            '  return s;',
+            '}',
+            'function __owColumnRange(column, count) {',
+            '  var start = /^\\d+$/.test(String(column)) ? parseInt(column, 10) : __owColToNum(column);',
+            '  if (isNaN(start) || start < 1) throw new Error("invalid_column:" + column);',
+            '  return __owNumToCol(start) + ":" + __owNumToCol(start + (Number(count) || 1) - 1);',
+            '}',
+            'function __owGetRange(address, sheetName) {',
+            '  if (!address) throw new Error("range_required");',
+            '  return __owResolveSheet(sheetName).GetRange(String(address));',
+            '}',
+            'function __owSetValue(address, value, sheetName) {',
+            '  var range = __owGetRange(address, sheetName);',
+            '  range.SetValue(value);',
+            '  var evaluated = null;',
+            '  try { evaluated = range.GetCells(1, 1).GetValue(); } catch (_) {}',
+            '  return { evaluated_value: evaluated };',
+            '}',
+            'function __owSetFormula(address, formula, sheetName) {',
+            '  if (formula == null) throw new Error("formula_required");',
+            '  var text = String(formula);',
+            '  if (text.charAt(0) !== "=") text = "=" + text;',
+            '  return __owSetValue(address, text, sheetName);',
+            '}',
+            'function __owSetFont(address, options, sheetName) {',
+            '  var range = __owGetRange(address, sheetName);',
+            '  var o = options || {};',
+            '  if (o.bold === true || o.bold === false) range.SetBold(!!o.bold);',
+            '  if (o.italic === true || o.italic === false) range.SetItalic(!!o.italic);',
+            '  if (o.underline === true || o.underline === false) range.SetUnderline(!!o.underline);',
+            '  if (o.color) range.SetFontColor(__owColorFromHex(o.color));',
+            '  if (o.size) range.SetFontSize(Number(o.size));',
+            '  if (o.name) range.SetFontName(String(o.name));',
+            '  return { address: String(address) };',
+            '}',
+            'function __owSetFill(address, color, sheetName) {',
+            '  var range = __owGetRange(address, sheetName);',
+            '  range.SetFillColor(color == null || color === "" ? null : __owColorFromHex(color));',
+            '  return { address: String(address) };',
+            '}',
+            'function __owSetBorder(address, options, sheetName) {',
+            '  var range = __owGetRange(address, sheetName);',
+            '  var o = options || {};',
+            '  var style = o.style || "Thin";',
+            '  var color = __owColorFromHex(o.color || "#000000");',
+            '  var sides = Array.isArray(o.sides) && o.sides.length > 0 ? o.sides : ["Top", "Bottom", "Left", "Right", "InsideHorizontal", "InsideVertical"];',
+            '  for (var i = 0; i < sides.length; i++) range.SetBorders(sides[i], style, color);',
+            '  return { address: String(address), sides: sides };',
+            '}',
+            'function __owSetAlignment(address, options, sheetName) {',
+            '  var range = __owGetRange(address, sheetName);',
+            '  var o = options || {};',
+            '  if (o.horizontal) range.SetAlignHorizontal(String(o.horizontal));',
+            '  if (o.vertical) range.SetAlignVertical(String(o.vertical));',
+            '  if (o.wrap === true || o.wrap === false) range.SetWrap(!!o.wrap);',
+            '  return { address: String(address) };',
+            '}',
+            'function __owMerge(address, sheetName, across) {',
+            '  if (typeof sheetName === "boolean") { across = sheetName; sheetName = null; }',
+            '  __owGetRange(address, sheetName).Merge(across === true);',
+            '  return { address: String(address), across: across === true };',
+            '}',
+            'function __owUnmerge(address, sheetName) {',
+            '  __owGetRange(address, sheetName).UnMerge();',
+            '  return { address: String(address) };',
+            '}',
+            'function __owInsertRows(at, count, sheetName) {',
+            '  var row = parseInt(at, 10);',
+            '  if (isNaN(row) || row < 1) throw new Error("at_required_row_index");',
+            '  var n = parseInt(count, 10) || 1;',
+            '  __owResolveSheet(sheetName).GetRange(row + ":" + (row + n - 1)).Insert("down");',
+            '  return { at: row, count: n };',
+            '}',
+            'function __owDeleteRows(at, count, sheetName) {',
+            '  var row = parseInt(at, 10);',
+            '  if (isNaN(row) || row < 1) throw new Error("at_required_row_index");',
+            '  var n = parseInt(count, 10) || 1;',
+            '  __owResolveSheet(sheetName).GetRange(row + ":" + (row + n - 1)).Delete("up");',
+            '  return { at: row, count: n };',
+            '}',
+            'function __owInsertColumns(at, count, sheetName) {',
+            '  __owResolveSheet(sheetName).GetRange(__owColumnRange(at, count)).Insert("right");',
+            '  return { at: at, count: parseInt(count, 10) || 1 };',
+            '}',
+            'function __owDeleteColumns(at, count, sheetName) {',
+            '  __owResolveSheet(sheetName).GetRange(__owColumnRange(at, count)).Delete("left");',
+            '  return { at: at, count: parseInt(count, 10) || 1 };',
+            '}',
+            'function __owSetColumnWidth(column, width, sheetName) {',
+            '  if (width == null) throw new Error("width_required");',
+            '  var idx = /^\\d+$/.test(String(column)) ? parseInt(column, 10) - 1 : __owColToNum(column) - 1;',
+            '  if (isNaN(idx) || idx < 0) throw new Error("invalid_column:" + column);',
+            '  __owResolveSheet(sheetName).SetColumnWidth(idx, Number(width));',
+            '  return { column: column, width: Number(width) };',
+            '}',
+            'function __owSetRowHeight(row, height, sheetName) {',
+            '  if (height == null) throw new Error("height_required");',
+            '  var idx = parseInt(row, 10) - 1;',
+            '  if (isNaN(idx) || idx < 0) throw new Error("invalid_row:" + row);',
+            '  __owResolveSheet(sheetName).SetRowHeight(idx, Number(height));',
+            '  return { row: row, height: Number(height) };',
+            '}',
+            'var Sheet = {',
+            '  engine: __owEngine,',
+            '  version: __owVersion,',
+            '  versionFamily: __owVersionFamily,',
+            '  color: __owColorFromHex,',
+            '  rgb: __owColorFromHex,',
+            '  sheet: __owResolveSheet,',
+            '  sheets: function () { return Api.GetSheets(); },',
+            '  range: function (address, sheetName) { return __owGetRange(address, sheetName); },',
+            '  setValue: function (address, value, sheetName) { return __owStep("setValue", { address: String(address), sheet: sheetName || null }, function () { return __owSetValue(address, value, sheetName); }); },',
+            '  setFormula: function (address, formula, sheetName) { return __owStep("setFormula", { address: String(address), sheet: sheetName || null }, function () { return __owSetFormula(address, formula, sheetName); }); },',
+            '  setNumberFormat: function (address, format, sheetName) { return __owStep("setNumberFormat", { address: String(address), sheet: sheetName || null, format: String(format) }, function () { var range = __owGetRange(address, sheetName); range.SetNumberFormat(String(format)); return { address: String(address) }; }); },',
+            '  setFont: function (address, options, sheetName) { return __owStep("setFont", { address: String(address), sheet: sheetName || null }, function () { return __owSetFont(address, options, sheetName); }); },',
+            '  setFill: function (address, color, sheetName) { return __owStep("setFill", { address: String(address), sheet: sheetName || null, color: color == null ? null : String(color) }, function () { return __owSetFill(address, color, sheetName); }); },',
+            '  setBorder: function (address, options, sheetName) { return __owStep("setBorder", { address: String(address), sheet: sheetName || null }, function () { return __owSetBorder(address, options, sheetName); }); },',
+            '  setAlignment: function (address, options, sheetName) { return __owStep("setAlignment", { address: String(address), sheet: sheetName || null }, function () { return __owSetAlignment(address, options, sheetName); }); },',
+            '  merge: function (address, sheetName, across) { return __owStep("merge", { address: String(address), sheet: typeof sheetName === "string" ? sheetName : null }, function () { return __owMerge(address, sheetName, across); }); },',
+            '  unmerge: function (address, sheetName) { return __owStep("unmerge", { address: String(address), sheet: sheetName || null }, function () { return __owUnmerge(address, sheetName); }); },',
+            '  insertRows: function (at, count, sheetName) { return __owStep("insertRows", { at: Number(at), count: Number(count) || 1, sheet: sheetName || null }, function () { return __owInsertRows(at, count, sheetName); }); },',
+            '  deleteRows: function (at, count, sheetName) { return __owStep("deleteRows", { at: Number(at), count: Number(count) || 1, sheet: sheetName || null }, function () { return __owDeleteRows(at, count, sheetName); }); },',
+            '  insertColumns: function (at, count, sheetName) { return __owStep("insertColumns", { at: at, count: Number(count) || 1, sheet: sheetName || null }, function () { return __owInsertColumns(at, count, sheetName); }); },',
+            '  deleteColumns: function (at, count, sheetName) { return __owStep("deleteColumns", { at: at, count: Number(count) || 1, sheet: sheetName || null }, function () { return __owDeleteColumns(at, count, sheetName); }); },',
+            '  setColumnWidth: function (column, width, sheetName) { return __owStep("setColumnWidth", { column: column, width: Number(width), sheet: sheetName || null }, function () { return __owSetColumnWidth(column, width, sheetName); }); },',
+            '  setRowHeight: function (row, height, sheetName) { return __owStep("setRowHeight", { row: Number(row), height: Number(height), sheet: sheetName || null }, function () { return __owSetRowHeight(row, height, sheetName); }); },',
+            '  addSheet: function (name) { return __owStep("addSheet", { name: String(name || "") }, function () { if (!name) throw new Error("name_required"); Api.AddSheet(String(name)); return { name: String(name) }; }); },',
+            '  renameSheet: function (from, to) { return __owStep("renameSheet", { from: String(from || ""), to: String(to || "") }, function () { if (!from || !to) throw new Error("from_and_to_required"); __owResolveSheet(from).SetName(String(to)); return { from: String(from), to: String(to) }; }); },',
+            '  deleteSheet: function (name) { return __owStep("deleteSheet", { name: String(name || "") }, function () { if (!name) throw new Error("name_required"); __owResolveSheet(name).Delete(); return { name: String(name) }; }); },',
+            '  setActiveSheet: function (name) { return __owStep("setActiveSheet", { name: String(name || "") }, function () { if (!name) throw new Error("name_required"); __owResolveSheet(name).SetActive(); return { name: String(name) }; }); },',
+            '  freezeRows: function (rows, sheetName) { return __owStep("freezeRows", { rows: Number(rows), sheet: sheetName || null }, function () { var ws = __owResolveSheetForView(sheetName); Api.SetFreezePanesType("row"); ws.GetFreezePanes().FreezeRows(Number(rows)); return { rows: Number(rows) }; }); },',
+            '  freezeColumns: function (columns, sheetName) { return __owStep("freezeColumns", { columns: Number(columns), sheet: sheetName || null }, function () { var ws = __owResolveSheetForView(sheetName); Api.SetFreezePanesType("column"); ws.GetFreezePanes().FreezeColumns(Number(columns)); return { columns: Number(columns) }; }); },',
+            '  freezeAt: function (address, sheetName) { return __owStep("freezeAt", { address: String(address || ""), sheet: sheetName || null }, function () { if (!address) throw new Error("range_required"); var ws = __owResolveSheetForView(sheetName); Api.SetFreezePanesType("cell"); ws.GetFreezePanes().FreezeAt(ws.GetRange(String(address))); return { location: String(address) }; }); },',
+            '  unfreeze: function (sheetName) { return __owStep("unfreeze", { sheet: sheetName || null }, function () { var ws = __owResolveSheetForView(sheetName); ws.GetFreezePanes().Unfreeze(); try { Api.SetFreezePanesType(null); } catch (_) {} return { unfrozen: true }; }); },',
+            '  raw: function (action, details, fn) { if (typeof fn !== "function") throw new Error("raw_function_required"); return __owStep(action || "raw", details || {}, function () { return { result: fn(Api, Sheet) }; }); },',
+            '  outcomes: function () { return __owOutcomes.slice(); },',
+            '  done: function (summary, data) { return { summary: String(summary || "Macro completed"), changed: true, data: __owSerializable(data || null) }; }',
+            '};',
+            'try {',
+            '  var __owUserResult = (function (Api, Sheet) {',
+            '    "use strict";',
+            normalizeSpreadsheetMacroCode(codeText),
+            '  })(Api, Sheet);',
+            '  if (__owUserResult === undefined) __owUserResult = null;',
+            '  return {',
+            '    ok: true,',
+            '    engine: __owEngine,',
+            '    version: __owVersion,',
+            '    version_family: __owVersionFamily,',
+            '    summary: __owSummaryFromResult(__owUserResult, "Macro completed"),',
+            '    result: __owSerializable(__owUserResult),',
+            '    applied: __owOutcomes.length,',
+            '    failed: 0,',
+            '    outcomes: __owOutcomes',
+            '  };',
+            '} catch (err) {',
+            '  if (__owOutcomes.length === 0 || __owOutcomes[__owOutcomes.length - 1].ok !== false) {',
+            '    __owOutcomes.push({ step: __owOutcomes.length + 1, action: "macro", ok: false, name: (err && err.name) ? err.name : "Error", error: (err && err.message) ? err.message : String(err) });',
+            '    __owStoppedAt = __owOutcomes.length;',
+            '  }',
+            '  var __owApplied = 0;',
+            '  for (var __owI = 0; __owI < __owOutcomes.length; __owI++) if (__owOutcomes[__owI].ok === true) __owApplied++;',
+            '  return {',
+            '    ok: false,',
+            '    engine: __owEngine,',
+            '    version: __owVersion,',
+            '    version_family: __owVersionFamily,',
+            '    summary: "Macro failed at step " + (__owStoppedAt || __owOutcomes.length),',
+            '    applied: __owApplied,',
+            '    failed: 1,',
+            '    stopped_at: __owStoppedAt || __owOutcomes.length,',
+            '    outcomes: __owOutcomes,',
+            '    name: (err && err.name) ? err.name : "Error",',
+            '    error: (err && err.message) ? err.message : String(err),',
+            '    stack: (err && err.stack) ? String(err.stack) : null',
+            '  };',
+            '}',
+            '//# sourceURL=officeweaver-spreadsheet-macro.js'
+        ].join('\n');
+
+        return new Function(body);
+    }
+
+    return OfficeWeaver;
+});

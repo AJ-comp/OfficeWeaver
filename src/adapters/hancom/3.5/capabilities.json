@@ -1,0 +1,7 @@
+{
+  "engine": "hancom",
+  "version_family": "3.5",
+  "status": "planned",
+  "kinds": ["hwp"],
+  "namespaces": ["Hwp"]
+}

@@ -1,0 +1,33 @@
+{
+  "engine": "onlyoffice",
+  "version_family": "9.3",
+  "kinds": ["spreadsheet"],
+  "namespaces": ["Sheet"],
+  "helpers": [
+    "setValue",
+    "setFormula",
+    "setNumberFormat",
+    "setFont",
+    "setFill",
+    "setBorder",
+    "setAlignment",
+    "merge",
+    "unmerge",
+    "insertRows",
+    "deleteRows",
+    "insertColumns",
+    "deleteColumns",
+    "setColumnWidth",
+    "setRowHeight",
+    "addSheet",
+    "renameSheet",
+    "deleteSheet",
+    "setActiveSheet",
+    "freezeRows",
+    "freezeColumns",
+    "freezeAt",
+    "unfreeze",
+    "raw",
+    "done"
+  ]
+}

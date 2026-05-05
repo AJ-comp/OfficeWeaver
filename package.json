@@ -1,0 +1,15 @@
+{
+  "name": "@mythosia/officeweaver",
+  "version": "0.1.0",
+  "description": "AI-friendly ONLYOFFICE automation runtime with traced spreadsheet helpers.",
+  "type": "commonjs",
+  "main": "src/officeweaver.js",
+  "scripts": {
+    "check": "node --check src/officeweaver.js"
+  },
+  "files": [
+    "src",
+    "rag",
+    "README.md"
+  ]
+}
