@@ -89,16 +89,10 @@ OfficeWeaver はチャットシステムでも、ベクトル DB でも、文書
 
 ## インストール
 
-パッケージ公開後は次のようにインストールします。
+npm からインストールします。
 
 ```bash
 npm install @mythosia/officeweaver
-```
-
-公開前のローカル開発では次のように使えます。
-
-```bash
-npm install ../OfficeWeaver
 ```
 
 パッケージには次のものが含まれています。
@@ -262,7 +256,7 @@ manuals/
 - `version_family`: `9.3`
 - `kind`: `spreadsheet`
 
-新しいエディターバージョンをサポートするときは、次のように新しいバージョンファミリーフォルダーを追加します。
+OfficeWeaver が別のエディターバージョンを含む場合、そのバージョンは次のように独立したバージョンファミリーフォルダーとして提供されます。
 
 ```text
 manuals/onlyoffice/9.4/spreadsheet/
@@ -270,40 +264,28 @@ manuals/onlyoffice/9.4/spreadsheet/
 
 アプリが最新の文書だけを使いたい場合は、以前に埋め込んだ OfficeWeaver チャンクを削除し、最新の manifest に基づいて再インデックスします。
 
-## バージョン別アダプターモデル
+## バージョンを合わせる
 
 Office API はバージョンに敏感です。ONLYOFFICE 9.3 で動くヘルパーが、ONLYOFFICE 9.4 や別の Office 製品では別実装を必要とすることがあります。
 
-OfficeWeaver は次の構造を目指します。
+マクロを生成または実行するときは、実際に実行しているエディターのエンジンとバージョンを渡してください。
 
-```text
-src/
-  officeweaver.js
-  adapters/
-    onlyoffice/
-      9.3/
-      9.4/
-    hancom/
-      3.2/
-      3.5/
-manuals/
-  onlyoffice/
-    9.3/
-    9.4/
-  hancom/
-    3.5/
+```js
+OfficeWeaver.buildSpreadsheetMacroCommand(code, {
+  engine: "onlyoffice",
+  version: "9.3.1.2"
+});
 ```
 
-最初のバージョンは意図的に小さく始めています。現在のランタイムは 1 ファイルに実装されています。公開設計としては、将来ラッパーが大きくなったときにバージョン別アダプターへ分けられるようにしています。
-
-この構造により、将来のホストアプリは次のような組み合わせを選べます。
+manuals をインデックスし検索するときも、同じエンジンとバージョンファミリーをフィルターとして使ってください。
 
 ```text
-ONLYOFFICE Spreadsheet: 9.3.1.2
-Hancom HWP: 3.5
+engine: onlyoffice
+version_family: 9.3
+kind: spreadsheet
 ```
 
-そして、そのエンジンとバージョンファミリーに対応するマニュアルだけを検索できます。
+これにより、異なるエディターバージョンの API 説明が混ざることを避けられます。
 
 ## 現在のスプレッドシートヘルパー
 
@@ -336,7 +318,7 @@ Hancom HWP: 3.5
 - `Sheet.outcomes()`
 - `Sheet.done(summary, data?)`
 
-すべてのエディター API を初日からラップしようとするより、実際の利用で繰り返し失敗する操作を基準にヘルパーを増やす方が現実的です。
+ここに載っていない操作は `Sheet.raw(...)` で包んで使えます。raw API を使う場合でも、実行結果は `outcomes` に残ります。
 
 ## ホストアプリへの統合方法
 
@@ -365,42 +347,10 @@ Hancom HWP: 3.5
   -> result.ok が false なら result.outcomes を LLM に返して retry
 ```
 
-## 開発
-
-必要であれば依存関係をインストールします。
-
-```bash
-npm install
-```
-
-テスト:
-
-```bash
-npm test
-```
-
-構文チェック:
-
-```bash
-npm run check
-```
-
-npm パッケージに含まれるファイルを確認:
-
-```bash
-npm pack --dry-run
-```
-
-準備ができたら公開:
-
-```bash
-npm publish --access public
-```
-
 ## 現在の制限
 
-- 現在のランタイムは ONLYOFFICE Spreadsheet API 9.3/9.4 ファミリーを対象にしています。
-- Document、Presentation、HWP のヘルパーはまだ実装されていません。
+- 現在のランタイムには ONLYOFFICE Spreadsheet API 9.3/9.4 ファミリー向けのスプレッドシートヘルパーが含まれています。
+- Document、Presentation、HWP のヘルパーはこのパッケージにはまだ含まれていません。
 - 高度なチャートなど複雑な機能は、まだ `Sheet.raw` と RAG マニュアル参照が必要になる場合があります。
 - OfficeWeaver はホストアプリの draft、保存、権限、undo ポリシーを置き換えるものではありません。
 
@@ -416,12 +366,4 @@ OfficeWeaver
 
 ```js
 Sheet.*
-```
-
-将来の文書タイプでは次の名前を使う予定です。
-
-```js
-Doc.*
-Slide.*
-Hwp.*
 ```

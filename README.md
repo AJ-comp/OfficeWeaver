@@ -89,16 +89,10 @@ OfficeWeaver is not a chat system, not a vector database, and not a document ser
 
 ## Installation
 
-After the package is published:
+Install from npm:
 
 ```bash
 npm install @mythosia/officeweaver
-```
-
-For local development before publishing:
-
-```bash
-npm install ../OfficeWeaver
 ```
 
 The package contains:
@@ -262,7 +256,7 @@ Recommended metadata filters:
 - `version_family`: `9.3`
 - `kind`: `spreadsheet`
 
-When a new editor version is supported, add a new version family folder such as:
+When OfficeWeaver includes another editor version, that version appears under its own version-family folder, for example:
 
 ```text
 manuals/onlyoffice/9.4/spreadsheet/
@@ -270,40 +264,28 @@ manuals/onlyoffice/9.4/spreadsheet/
 
 If your application only wants latest docs, delete older embedded chunks and index the latest manifest version again.
 
-## Versioned Adapter Model
+## Version Matching
 
 Office APIs are version-sensitive. A helper that works for ONLYOFFICE 9.3 may need a different implementation for ONLYOFFICE 9.4 or another office suite.
 
-OfficeWeaver keeps this shape:
+When generating or executing macros, pass the editor engine and version you are actually running:
 
-```text
-src/
-  officeweaver.js
-  adapters/
-    onlyoffice/
-      9.3/
-      9.4/
-    hancom/
-      3.2/
-      3.5/
-manuals/
-  onlyoffice/
-    9.3/
-    9.4/
-  hancom/
-    3.5/
+```js
+OfficeWeaver.buildSpreadsheetMacroCommand(code, {
+  engine: "onlyoffice",
+  version: "9.3.1.2"
+});
 ```
 
-The first version is intentionally small and currently implements the runtime in one file. The public design leaves room for version-specific adapters as the wrapper grows.
-
-This lets a future host app choose combinations like:
+Use the same engine and version family when indexing and retrieving manuals:
 
 ```text
-ONLYOFFICE Spreadsheet: 9.3.1.2
-Hancom HWP: 3.5
+engine: onlyoffice
+version_family: 9.3
+kind: spreadsheet
 ```
 
-and retrieve only the manuals for that exact engine/version family.
+This avoids mixing API notes from different editor versions.
 
 ## Current Spreadsheet Helpers
 
@@ -336,7 +318,7 @@ Current helper list:
 - `Sheet.outcomes()`
 - `Sheet.done(summary, data?)`
 
-More helpers should be added based on repeated real-world failures, not by trying to wrap every editor API on day one.
+For operations that are not listed here, use `Sheet.raw(...)` to keep the operation visible in `outcomes`.
 
 ## How A Host App Integrates It
 
@@ -362,42 +344,10 @@ Chat request
   -> if result.ok is false, send result.outcomes back for retry
 ```
 
-## Development
-
-Install dependencies if needed:
-
-```bash
-npm install
-```
-
-Run tests:
-
-```bash
-npm test
-```
-
-Run syntax checks:
-
-```bash
-npm run check
-```
-
-Preview the npm package contents:
-
-```bash
-npm pack --dry-run
-```
-
-Publish after the package is ready:
-
-```bash
-npm publish --access public
-```
-
 ## Current Limitations
 
-- The runtime currently targets ONLYOFFICE Spreadsheet API 9.3/9.4 families.
-- Document, presentation, and HWP helpers are planned but not implemented yet.
+- The runtime currently includes spreadsheet helpers for ONLYOFFICE 9.3/9.4 version families.
+- Document, presentation, and HWP helpers are not included in this package yet.
 - Complex features such as advanced charts may still need `Sheet.raw` and RAG references.
 - OfficeWeaver does not replace the host app's draft, save, permission, or undo policy.
 
@@ -413,12 +363,4 @@ Generated spreadsheet macros should use:
 
 ```js
 Sheet.*
-```
-
-Future document types should use:
-
-```js
-Doc.*
-Slide.*
-Hwp.*
 ```

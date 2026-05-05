@@ -89,16 +89,10 @@ OfficeWeaver는 채팅 시스템도, 벡터 DB도, 문서 서버도 아닙니다
 
 ## 설치
 
-패키지가 npm에 배포된 뒤에는 다음처럼 설치합니다.
+npm에서 설치합니다.
 
 ```bash
 npm install @mythosia/officeweaver
-```
-
-배포 전 로컬 개발에서는 다음처럼 설치할 수 있습니다.
-
-```bash
-npm install ../OfficeWeaver
 ```
 
 패키지 구성은 다음과 같습니다.
@@ -262,7 +256,7 @@ manuals/
 - `version_family`: `9.3`
 - `kind`: `spreadsheet`
 
-새 편집기 버전을 지원할 때는 다음처럼 새 버전 패밀리 폴더를 추가합니다.
+OfficeWeaver가 다른 편집기 버전을 포함하면, 해당 버전은 다음처럼 별도의 버전 패밀리 폴더 아래에 제공됩니다.
 
 ```text
 manuals/onlyoffice/9.4/spreadsheet/
@@ -270,40 +264,28 @@ manuals/onlyoffice/9.4/spreadsheet/
 
 앱이 최신 문서만 사용하고 싶다면, 이전에 임베딩한 OfficeWeaver 청크를 삭제하고 최신 manifest 기준으로 다시 색인하면 됩니다.
 
-## 버전별 어댑터 모델
+## 버전 맞추기
 
 Office API는 버전에 민감합니다. ONLYOFFICE 9.3에서 작동하는 헬퍼가 ONLYOFFICE 9.4나 다른 Office 제품에서는 다른 구현을 요구할 수 있습니다.
 
-OfficeWeaver는 다음 구조를 지향합니다.
+매크로를 생성하거나 실행할 때는 실제로 실행 중인 편집기 엔진과 버전을 전달하세요.
 
-```text
-src/
-  officeweaver.js
-  adapters/
-    onlyoffice/
-      9.3/
-      9.4/
-    hancom/
-      3.2/
-      3.5/
-manuals/
-  onlyoffice/
-    9.3/
-    9.4/
-  hancom/
-    3.5/
+```js
+OfficeWeaver.buildSpreadsheetMacroCommand(code, {
+  engine: "onlyoffice",
+  version: "9.3.1.2"
+});
 ```
 
-첫 버전은 의도적으로 작게 시작하며, 현재 런타임은 하나의 파일 안에 구현되어 있습니다. 공개 설계는 추후 래퍼가 커질 때 버전별 어댑터로 나눌 수 있도록 열어둔 상태입니다.
-
-이 구조를 사용하면 미래의 호스트 앱은 다음처럼 서로 다른 엔진 버전을 조합할 수 있습니다.
+manuals를 색인하고 검색할 때도 같은 엔진과 버전 패밀리를 필터로 사용하세요.
 
 ```text
-ONLYOFFICE Spreadsheet: 9.3.1.2
-Hancom HWP: 3.5
+engine: onlyoffice
+version_family: 9.3
+kind: spreadsheet
 ```
 
-그리고 해당 엔진과 버전 패밀리에 맞는 매뉴얼만 검색하면 됩니다.
+이렇게 하면 서로 다른 편집기 버전의 API 설명이 섞이는 일을 피할 수 있습니다.
 
 ## 현재 스프레드시트 헬퍼
 
@@ -336,7 +318,7 @@ Hancom HWP: 3.5
 - `Sheet.outcomes()`
 - `Sheet.done(summary, data?)`
 
-모든 편집기 API를 첫날부터 전부 래핑하려고 하기보다, 실제 사용 중 반복적으로 실패하는 작업을 기준으로 헬퍼를 늘려가는 편이 좋습니다.
+여기에 없는 작업은 `Sheet.raw(...)`로 감싸서 사용하면 됩니다. 그러면 raw API를 쓰더라도 `outcomes`에 실행 결과가 남습니다.
 
 ## 호스트 앱 통합 방법
 
@@ -365,42 +347,10 @@ Hancom HWP: 3.5
   -> result.ok가 false이면 result.outcomes를 다시 LLM에게 보내 retry
 ```
 
-## 개발
-
-필요하면 의존성을 설치합니다.
-
-```bash
-npm install
-```
-
-테스트 실행:
-
-```bash
-npm test
-```
-
-문법 검사:
-
-```bash
-npm run check
-```
-
-npm 패키지에 어떤 파일이 들어가는지 미리 확인:
-
-```bash
-npm pack --dry-run
-```
-
-준비가 끝난 뒤 배포:
-
-```bash
-npm publish --access public
-```
-
 ## 현재 한계
 
-- 현재 런타임은 ONLYOFFICE Spreadsheet API 9.3/9.4 패밀리를 대상으로 합니다.
-- 문서, 프레젠테이션, HWP 헬퍼는 아직 구현되어 있지 않습니다.
+- 현재 런타임은 ONLYOFFICE Spreadsheet API 9.3/9.4 패밀리용 스프레드시트 헬퍼를 포함합니다.
+- 문서, 프레젠테이션, HWP 헬퍼는 이 패키지에 아직 포함되어 있지 않습니다.
 - 고급 차트 같은 복잡한 기능은 아직 `Sheet.raw`와 RAG 매뉴얼 참조가 필요할 수 있습니다.
 - OfficeWeaver는 호스트 앱의 draft, 저장, 권한, undo 정책을 대체하지 않습니다.
 
@@ -416,12 +366,4 @@ OfficeWeaver
 
 ```js
 Sheet.*
-```
-
-향후 문서 타입은 다음 이름을 사용할 계획입니다.
-
-```js
-Doc.*
-Slide.*
-Hwp.*
 ```
