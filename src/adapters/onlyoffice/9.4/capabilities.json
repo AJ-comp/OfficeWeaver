@@ -1,8 +1,0 @@
-{
-  "engine": "onlyoffice",
-  "version_family": "9.4",
-  "status": "planned",
-  "inherits": "onlyoffice/9.3",
-  "kinds": ["spreadsheet"],
-  "namespaces": ["Sheet"]
-}

@@ -6,7 +6,7 @@ OfficeWeaver는 AI 친화적인 Office 문서 자동화를 만들기 위한 작�
 
 LLM이 작성한 매크로 코드와 ONLYOFFICE 같은 Office 편집기 API 사이에 위치합니다. 목표는 단순합니다. 모델은 안정적인 헬퍼 API로 문서를 편집하고, 호스트 애플리케이션은 각 작업 단계의 성공/실패 결과를 구조화해서 받을 수 있게 만드는 것입니다.
 
-현재 OfficeWeaver는 ONLYOFFICE Spreadsheet 매크로를 우선 지원합니다. 패키지에는 RAG에 바로 색인할 수 있는 버전별 `manuals/` 문서도 함께 들어 있습니다. 호스트 앱은 이 문서를 벡터 DB에 넣어두고, LLM이 코드를 작성할 때 필요한 사용법을 검색해서 프롬프트에 넣을 수 있습니다.
+현재 OfficeWeaver는 ONLYOFFICE Spreadsheet와 Word/text-document 매크로용 추적 헬퍼를 포함합니다. 패키지에는 RAG에 바로 색인할 수 있는 버전별 `manuals/` 문서도 함께 들어 있습니다. 호스트 앱은 이 문서를 벡터 DB에 넣어두고, LLM이 코드를 작성할 때 필요한 사용법을 검색해서 프롬프트에 넣을 수 있습니다.
 
 ## 왜 필요한가
 
@@ -15,7 +15,7 @@ Office 편집기들은 강력한 JavaScript API를 제공합니다. 하지만 ra
 자주 생기는 문제는 다음과 같습니다.
 
 - 모델이 ExcelJS, Office.js, VBA, Google Apps Script, ONLYOFFICE API를 서로 섞어서 사용합니다.
-- 실제로 없는 `SetFontBold`, `GetValues`, `SetFreezePanes`, `Api.CreateChart` 같은 메서드를 만들어낼 수 있습니다.
+- 모델이 다른 Office 자동화 라이브러리나 다른 편집기 버전의 메서드 이름을 섞어서 만들어낼 수 있습니다.
 - raw JavaScript 매크로는 보통 “스크립트 하나”로 실패합니다. 호스트 앱은 실패했다는 사실은 알지만, 어느 논리 단계까지 적용됐고 어느 단계에서 실패했는지 알기 어렵습니다.
 - 수식을 넣은 경우, 모델이 수식이 제대로 계산됐는지 확인하기 위해 평가된 값을 다시 보고 싶어 하는 경우가 많습니다.
 - 각 애플리케이션이 헬퍼 레이어, retry 로그, 매뉴얼, 편집기 버전별 주의사항을 매번 새로 만들어야 합니다.
@@ -24,7 +24,7 @@ OfficeWeaver는 LLM에게 더 작고 추적 가능한 API를 제공해서 이 �
 
 ## OfficeWeaver가 해결하는 것
 
-LLM이 모든 raw 편집기 API를 직접 호출하게 하는 대신, 다음처럼 `Sheet.*` 헬퍼를 사용하게 합니다.
+LLM이 모든 raw 편집기 API를 직접 호출하게 하는 대신, 스프레드시트에서는 `Sheet.*`, Word/text-document에서는 `Doc.*` 헬퍼를 사용하게 합니다.
 
 ```js
 Sheet.setValue("A1", "Sales Report");
@@ -78,7 +78,7 @@ OfficeWeaver는 이 호출들을 실제 편집기 API로 실행하고, 구조화
 ```text
 사용자 요청
   -> 호스트 앱이 LLM에게 매크로 작성을 요청
-  -> LLM이 Sheet.* 코드를 작성
+  -> LLM이 Sheet.* 또는 Doc.* 코드를 작성
   -> OfficeWeaver가 헬퍼를 실행
   -> ONLYOFFICE가 문서를 변경
   -> OfficeWeaver가 구조화된 outcomes를 반환
@@ -134,10 +134,11 @@ OfficeWeaver는 전역 객체를 제공합니다.
 OfficeWeaver
 ```
 
-생성된 스프레드시트 매크로는 다음 헬퍼 네임스페이스를 사용합니다.
+생성된 매크로는 문서 종류에 따라 다음 헬퍼 네임스페이스를 사용합니다.
 
 ```js
-Sheet
+Sheet // 스프레드시트
+Doc   // Word/text-document
 ```
 
 ## 스프레드시트 매크로 실행
@@ -160,9 +161,30 @@ const result = command();
 
 ONLYOFFICE 안에서 `command()`는 편집기의 `Api` 객체가 존재한다고 가정합니다. OfficeWeaver는 이 `Api` 객체를 내부적으로 사용합니다.
 
+## Word 매크로 실행
+
+ONLYOFFICE 텍스트 문서에서는 `buildTextDocumentMacroCommand` 또는 별칭인 `buildWordMacroCommand`를 사용합니다.
+
+```js
+const command = OfficeWeaver.buildWordMacroCommand(`
+Doc.addHeading("Sales Performance Report", 1, { color: "#1F4E79", align: "center" });
+Doc.addParagraph("Prepared for management", { italic: true, spacingAfter: 160 });
+Doc.addTable([
+  ["Metric", "Value"],
+  ["Revenue", "120000"]
+], { headerFill: "#1F4E79", borderColor: "#D9E2EC" });
+return Doc.done("Created report structure");
+`, {
+  engine: "onlyoffice",
+  version: "9.3.1.2"
+});
+
+const result = command();
+```
+
 ## LLM이 사용해야 하는 코드
 
-일반적인 스프레드시트 작업에서는 LLM에게 먼저 `Sheet.*` 헬퍼를 쓰도록 지시하세요.
+일반적인 스프레드시트 작업에서는 `Sheet.*` 헬퍼를, Word/text-document 작업에서는 `Doc.*` 헬퍼를 먼저 쓰도록 지시하세요.
 
 ### 값과 수식
 
@@ -228,7 +250,7 @@ API 문서는 여전히 필요합니다. OfficeWeaver는 이 문서를 `manuals/
 OfficeWeaver는 두 가지를 결합합니다.
 
 - `manuals/`는 모델에게 무엇이 존재하고 어떻게 써야 하는지 알려줍니다.
-- `Sheet.*` 헬퍼는 흔한 작업을 추적 가능하고 retry하기 쉽게 만듭니다.
+- `Sheet.*`와 `Doc.*` 헬퍼는 흔한 작업을 추적 가능하고 retry하기 쉽게 만듭니다.
 
 ## RAG를 위한 manuals
 
@@ -246,6 +268,11 @@ manuals/
         ApiWorksheet.AddChart.md
         examples.ModernTable.md
         errors.CommonWrongApis.md
+      word/
+        OfficeWeaver.DocHelpers.md
+        Doc.ParagraphsAndHeadings.md
+        Doc.Tables.md
+        examples.ModernReport.md
 ```
 
 호스트 앱은 설치된 패키지에서 매뉴얼을 직접 읽어야 합니다. 앱 프로젝트 안에 손으로 관리하는 복사본을 따로 만들지 않는 편이 좋습니다.
@@ -254,19 +281,20 @@ manuals/
 
 - `engine`: `onlyoffice`
 - `version_family`: `9.3`
-- `kind`: `spreadsheet`
+- `kind`: `spreadsheet` 또는 `word`
 
 OfficeWeaver가 다른 편집기 버전을 포함하면, 해당 버전은 다음처럼 별도의 버전 패밀리 폴더 아래에 제공됩니다.
 
 ```text
-manuals/onlyoffice/9.4/spreadsheet/
+manuals/onlyoffice/<version-family>/spreadsheet/
+manuals/onlyoffice/<version-family>/word/
 ```
 
 앱이 최신 문서만 사용하고 싶다면, 이전에 임베딩한 OfficeWeaver 청크를 삭제하고 최신 manifest 기준으로 다시 색인하면 됩니다.
 
 ## 버전 맞추기
 
-Office API는 버전에 민감합니다. ONLYOFFICE 9.3에서 작동하는 헬퍼가 ONLYOFFICE 9.4나 다른 Office 제품에서는 다른 구현을 요구할 수 있습니다.
+Office API는 버전에 민감합니다. ONLYOFFICE 9.3에서 작동하는 헬퍼가 이후 ONLYOFFICE 릴리스나 다른 Office 제품에서는 다른 구현을 요구할 수 있습니다.
 
 매크로를 생성하거나 실행할 때는 실제로 실행 중인 편집기 엔진과 버전을 전달하세요.
 
@@ -320,6 +348,27 @@ kind: spreadsheet
 
 여기에 없는 작업은 `Sheet.raw(...)`로 감싸서 사용하면 됩니다. 그러면 raw API를 쓰더라도 `outcomes`에 실행 결과가 남습니다.
 
+## 현재 Word 헬퍼
+
+현재 제공되는 헬퍼는 다음과 같습니다.
+
+- `Doc.clear()`
+- `Doc.setParagraphText(index, text)`
+- `Doc.addParagraph(text, options?)`
+- `Doc.insertParagraph(index, text, options?)`
+- `Doc.addHeading(text, level?, options?)`
+- `Doc.styleParagraph(index, options)`
+- `Doc.styleRange(start, end, options)`
+- `Doc.search(text, matchCase?)`
+- `Doc.replace(search, replacement, options?)`
+- `Doc.addList(items, options?)`
+- `Doc.addTable(rows, options?)`
+- `Doc.raw(action, details, fn)`
+- `Doc.outcomes()`
+- `Doc.done(summary, data?)`
+
+여기에 없는 작업은 `Doc.raw(...)`로 감싸서 사용하면 됩니다. 그러면 raw API를 쓰더라도 `outcomes`에 실행 결과가 남습니다.
+
 ## 호스트 앱 통합 방법
 
 일반적인 앱 통합은 네 단계입니다.
@@ -327,7 +376,7 @@ kind: spreadsheet
 1. 패키지를 설치합니다.
 2. `src/officeweaver.js`를 편집기 플러그인 빌드 출력으로 복사합니다.
 3. `manuals/`를 청킹하고 임베딩해서 앱의 벡터 DB에 색인합니다.
-4. 생성된 `Sheet.*` 코드를 OfficeWeaver로 실행하는 매크로 실행 도구를 등록합니다.
+4. 생성된 `Sheet.*` 또는 `Doc.*` 코드를 OfficeWeaver로 실행하는 매크로 실행 도구를 등록합니다.
 
 예시 흐름:
 
@@ -335,23 +384,23 @@ kind: spreadsheet
 애플리케이션 시작
   -> node_modules/@mythosia/officeweaver/manuals/manifest.json 읽기
   -> 이미 임베딩된 버전과 manifest 버전이 다르면 이전 OfficeWeaver 청크 삭제
-  -> manuals/onlyoffice/9.3/spreadsheet/*.md 청킹
+  -> manuals/onlyoffice/9.3/spreadsheet/*.md 와 manuals/onlyoffice/9.3/word/*.md 청킹
   -> 각 청크 임베딩 생성
   -> 벡터 DB에 저장
 
 채팅 요청
   -> 사용자 요청과 관련된 RAG 청크 검색
   -> 검색된 매뉴얼 청크를 프롬프트에 포함
-  -> LLM에게 Sheet.* 매크로 코드 작성 요청
+  -> LLM에게 Sheet.* 또는 Doc.* 매크로 코드 작성 요청
   -> OfficeWeaver로 실행
   -> result.ok가 false이면 result.outcomes를 다시 LLM에게 보내 retry
 ```
 
 ## 현재 한계
 
-- 현재 런타임은 ONLYOFFICE Spreadsheet API 9.3/9.4 패밀리용 스프레드시트 헬퍼를 포함합니다.
-- 문서, 프레젠테이션, HWP 헬퍼는 이 패키지에 아직 포함되어 있지 않습니다.
-- 고급 차트 같은 복잡한 기능은 아직 `Sheet.raw`와 RAG 매뉴얼 참조가 필요할 수 있습니다.
+- 현재 런타임은 ONLYOFFICE 9.3 버전 패밀리용 스프레드시트 및 Word/text-document 헬퍼를 포함합니다.
+- 프레젠테이션과 HWP 헬퍼는 이 패키지에 아직 포함되어 있지 않습니다.
+- 고급 차트나 고급 Word 레이아웃 같은 복잡한 기능은 아직 `Sheet.raw`, `Doc.raw`, RAG 매뉴얼 참조가 필요할 수 있습니다.
 - OfficeWeaver는 호스트 앱의 draft, 저장, 권한, undo 정책을 대체하지 않습니다.
 
 ## 이름 규칙
@@ -366,4 +415,10 @@ OfficeWeaver
 
 ```js
 Sheet.*
+```
+
+생성된 Word/text-document 매크로는 다음을 사용합니다.
+
+```js
+Doc.*
 ```

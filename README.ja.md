@@ -6,7 +6,7 @@ OfficeWeaver は、AI フレンドリーな Office 文書自動化を作るた�
 
 LLM が生成したマクロコードと、ONLYOFFICE などの Office エディター API の間に入ります。目的はシンプルです。モデルには安定したヘルパー API で文書を編集させ、ホストアプリケーションには各ステップの成功・失敗を構造化された結果として返します。
 
-現在の OfficeWeaver は、ONLYOFFICE Spreadsheet マクロを中心にしています。パッケージには、RAG でそのままインデックスできるバージョン別の `manuals/` も含まれています。ホストアプリはこれらの文書をベクトル DB に入れておき、LLM がコードを書くときに必要な使い方を検索してプロンプトに渡せます。
+現在の OfficeWeaver は、ONLYOFFICE Spreadsheet と Word/text-document マクロ向けの追跡付きヘルパーを含んでいます。パッケージには、RAG でそのままインデックスできるバージョン別の `manuals/` も含まれています。ホストアプリはこれらの文書をベクトル DB に入れておき、LLM がコードを書くときに必要な使い方を検索してプロンプトに渡せます。
 
 ## なぜ必要なのか
 
@@ -15,7 +15,7 @@ Office エディターは強力な JavaScript API を提供しています。し
 よくある問題:
 
 - モデルが ExcelJS、Office.js、VBA、Google Apps Script、ONLYOFFICE API を混同します。
-- 実際には存在しない `SetFontBold`、`GetValues`、`SetFreezePanes`、`Api.CreateChart` のようなメソッド名を作ってしまうことがあります。
+- モデルが別の Office 自動化ライブラリや別のエディターバージョンのメソッド名を混ぜて生成することがあります。
 - raw JavaScript マクロは、多くの場合「ひとつの大きなスクリプト」として失敗します。ホストアプリは失敗したことは分かりますが、どの論理ステップまで適用され、どこで失敗したのかを把握しにくいです。
 - 数式を書き込む場合、モデルは数式が正しく計算されたか確認するために評価後の値を見たくなることがあります。
 - 各アプリケーションが、ヘルパーレイヤー、retry ログ、マニュアル、エディターのバージョン別注意点を毎回作ることになります。
@@ -24,7 +24,7 @@ OfficeWeaver は、LLM により小さく、追跡可能な API を提供する�
 
 ## OfficeWeaver が解決すること
 
-LLM にすべての raw エディター API を直接呼ばせる代わりに、次のような `Sheet.*` ヘルパーを生成させます。
+LLM にすべての raw エディター API を直接呼ばせる代わりに、スプレッドシートでは `Sheet.*`、Word/text-document では `Doc.*` ヘルパーを生成させます。
 
 ```js
 Sheet.setValue("A1", "Sales Report");
@@ -78,7 +78,7 @@ OfficeWeaver はこれらの呼び出しを実際のエディター API で実�
 ```text
 ユーザーの要求
   -> ホストアプリが LLM にマクロ作成を依頼
-  -> LLM が Sheet.* コードを書く
+  -> LLM が Sheet.* または Doc.* コードを書く
   -> OfficeWeaver がヘルパーを実行
   -> ONLYOFFICE が文書を変更
   -> OfficeWeaver が構造化された outcomes を返す
@@ -134,10 +134,11 @@ OfficeWeaver はグローバルオブジェクトを公開します。
 OfficeWeaver
 ```
 
-生成されたスプレッドシートマクロは、次のヘルパーネームスペースを使います。
+生成されたマクロは、文書の種類に応じて次のヘルパーネームスペースを使います。
 
 ```js
-Sheet
+Sheet // スプレッドシート
+Doc   // Word/text-document
 ```
 
 ## スプレッドシートマクロを実行する
@@ -160,9 +161,30 @@ const result = command();
 
 ONLYOFFICE 内では、`command()` はエディターの `Api` オブジェクトが存在することを前提にします。OfficeWeaver はその `Api` オブジェクトを内部で使います。
 
+## Word マクロを実行する
+
+ONLYOFFICE テキスト文書では、`buildTextDocumentMacroCommand` またはエイリアスの `buildWordMacroCommand` を使います。
+
+```js
+const command = OfficeWeaver.buildWordMacroCommand(`
+Doc.addHeading("Sales Performance Report", 1, { color: "#1F4E79", align: "center" });
+Doc.addParagraph("Prepared for management", { italic: true, spacingAfter: 160 });
+Doc.addTable([
+  ["Metric", "Value"],
+  ["Revenue", "120000"]
+], { headerFill: "#1F4E79", borderColor: "#D9E2EC" });
+return Doc.done("Created report structure");
+`, {
+  engine: "onlyoffice",
+  version: "9.3.1.2"
+});
+
+const result = command();
+```
+
 ## LLM が使うべきコード
 
-一般的なスプレッドシート作業では、LLM にまず `Sheet.*` ヘルパーを使わせてください。
+一般的なスプレッドシート作業では `Sheet.*` ヘルパーを、Word/text-document 作業では `Doc.*` ヘルパーをまず使わせてください。
 
 ### 値と数式
 
@@ -228,7 +250,7 @@ API ドキュメントは必要です。OfficeWeaver はそれを `manuals/` 以
 OfficeWeaver は次の二つを組み合わせます。
 
 - `manuals/` は、何が存在し、どう使うべきかをモデルに教えます。
-- `Sheet.*` ヘルパーは、よく使う操作を追跡可能にし、retry しやすくします。
+- `Sheet.*` と `Doc.*` ヘルパーは、よく使う操作を追跡可能にし、retry しやすくします。
 
 ## RAG のための manuals
 
@@ -246,6 +268,11 @@ manuals/
         ApiWorksheet.AddChart.md
         examples.ModernTable.md
         errors.CommonWrongApis.md
+      word/
+        OfficeWeaver.DocHelpers.md
+        Doc.ParagraphsAndHeadings.md
+        Doc.Tables.md
+        examples.ModernReport.md
 ```
 
 ホストアプリは、インストール済みパッケージからマニュアルを直接読むべきです。アプリプロジェクト内に手動管理のコピーを作らない方が安全です。
@@ -254,19 +281,20 @@ manuals/
 
 - `engine`: `onlyoffice`
 - `version_family`: `9.3`
-- `kind`: `spreadsheet`
+- `kind`: `spreadsheet` または `word`
 
 OfficeWeaver が別のエディターバージョンを含む場合、そのバージョンは次のように独立したバージョンファミリーフォルダーとして提供されます。
 
 ```text
-manuals/onlyoffice/9.4/spreadsheet/
+manuals/onlyoffice/<version-family>/spreadsheet/
+manuals/onlyoffice/<version-family>/word/
 ```
 
 アプリが最新の文書だけを使いたい場合は、以前に埋め込んだ OfficeWeaver チャンクを削除し、最新の manifest に基づいて再インデックスします。
 
 ## バージョンを合わせる
 
-Office API はバージョンに敏感です。ONLYOFFICE 9.3 で動くヘルパーが、ONLYOFFICE 9.4 や別の Office 製品では別実装を必要とすることがあります。
+Office API はバージョンに敏感です。ONLYOFFICE 9.3 で動くヘルパーが、今後の ONLYOFFICE リリースや別の Office 製品では別実装を必要とすることがあります。
 
 マクロを生成または実行するときは、実際に実行しているエディターのエンジンとバージョンを渡してください。
 
@@ -320,6 +348,27 @@ kind: spreadsheet
 
 ここに載っていない操作は `Sheet.raw(...)` で包んで使えます。raw API を使う場合でも、実行結果は `outcomes` に残ります。
 
+## 現在の Word ヘルパー
+
+現在提供されているヘルパーは次の通りです。
+
+- `Doc.clear()`
+- `Doc.setParagraphText(index, text)`
+- `Doc.addParagraph(text, options?)`
+- `Doc.insertParagraph(index, text, options?)`
+- `Doc.addHeading(text, level?, options?)`
+- `Doc.styleParagraph(index, options)`
+- `Doc.styleRange(start, end, options)`
+- `Doc.search(text, matchCase?)`
+- `Doc.replace(search, replacement, options?)`
+- `Doc.addList(items, options?)`
+- `Doc.addTable(rows, options?)`
+- `Doc.raw(action, details, fn)`
+- `Doc.outcomes()`
+- `Doc.done(summary, data?)`
+
+ここに載っていない操作は `Doc.raw(...)` で包んで使えます。raw API を使う場合でも、実行結果は `outcomes` に残ります。
+
 ## ホストアプリへの統合方法
 
 一般的な統合は 4 ステップです。
@@ -327,7 +376,7 @@ kind: spreadsheet
 1. パッケージをインストールします。
 2. `src/officeweaver.js` をエディタープラグインのビルド出力へコピーします。
 3. `manuals/` をチャンク化し、embedding を作成して、アプリのベクトル DB にインデックスします。
-4. 生成された `Sheet.*` コードを OfficeWeaver で実行するマクロ実行ツールを登録します。
+4. 生成された `Sheet.*` または `Doc.*` コードを OfficeWeaver で実行するマクロ実行ツールを登録します。
 
 例:
 
@@ -335,23 +384,23 @@ kind: spreadsheet
 アプリケーション起動
   -> node_modules/@mythosia/officeweaver/manuals/manifest.json を読む
   -> 既に埋め込まれたバージョンと manifest のバージョンが違えば古い OfficeWeaver チャンクを削除
-  -> manuals/onlyoffice/9.3/spreadsheet/*.md をチャンク化
+  -> manuals/onlyoffice/9.3/spreadsheet/*.md と manuals/onlyoffice/9.3/word/*.md をチャンク化
   -> 各チャンクの embedding を作成
   -> ベクトル DB に保存
 
 チャット要求
   -> ユーザー要求に関連する RAG チャンクを検索
   -> 検索されたマニュアルチャンクをプロンプトに含める
-  -> LLM に Sheet.* マクロコードを書かせる
+  -> LLM に Sheet.* または Doc.* マクロコードを書かせる
   -> OfficeWeaver で実行
   -> result.ok が false なら result.outcomes を LLM に返して retry
 ```
 
 ## 現在の制限
 
-- 現在のランタイムには ONLYOFFICE Spreadsheet API 9.3/9.4 ファミリー向けのスプレッドシートヘルパーが含まれています。
-- Document、Presentation、HWP のヘルパーはこのパッケージにはまだ含まれていません。
-- 高度なチャートなど複雑な機能は、まだ `Sheet.raw` と RAG マニュアル参照が必要になる場合があります。
+- 現在のランタイムには ONLYOFFICE 9.3 バージョンファミリー向けのスプレッドシートおよび Word/text-document ヘルパーが含まれています。
+- Presentation と HWP のヘルパーはこのパッケージにはまだ含まれていません。
+- 高度なチャートや高度な Word レイアウトなど複雑な機能は、まだ `Sheet.raw`、`Doc.raw`、RAG マニュアル参照が必要になる場合があります。
 - OfficeWeaver はホストアプリの draft、保存、権限、undo ポリシーを置き換えるものではありません。
 
 ## 命名
@@ -366,4 +415,10 @@ OfficeWeaver
 
 ```js
 Sheet.*
+```
+
+生成された Word/text-document マクロは次を使います。
+
+```js
+Doc.*
 ```

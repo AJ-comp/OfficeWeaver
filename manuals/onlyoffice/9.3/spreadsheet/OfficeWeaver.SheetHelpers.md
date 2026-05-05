@@ -1,4 +1,4 @@
----
+﻿---
 source_id: officeweaver.onlyoffice.9_3.spreadsheet.SheetHelpers
 engine: onlyoffice
 version: 9.3.1.2
@@ -7,8 +7,6 @@ product: spreadsheet
 kind: spreadsheet
 object: OfficeWeaver Sheet
 method: setValue setFormula setFont setFill setBorder setAlignment insertRows freezeRows done raw
-title: OfficeWeaver Sheet helpers for traced spreadsheet macros
-source_url: local:officeweaver/onlyoffice/9.3/spreadsheet/sheet-helpers
 keywords:
   - OfficeWeaver
   - Sheet helpers
@@ -25,7 +23,7 @@ keywords:
 # OfficeWeaver Sheet Helpers
 
 Use `Sheet.*` helpers for common spreadsheet edits in `excel_run_js_macro`.
-They call the ONLYOFFICE API internally and return structured `outcomes` with step, action, ok/error, and formula `evaluated_value` where possible.
+They call the editor API internally and return structured `outcomes` with step, action, ok/error, and formula `evaluated_value` where possible.
 
 Prefer helpers over raw API for values, formulas, formatting, rows, columns, sheets, and freeze panes.
 
@@ -44,6 +42,7 @@ Sheet.setFill("A1:E1", "#1F4E79");
 Sheet.setFont("A1:E1", { bold: true, color: "#FFFFFF", size: 12 });
 Sheet.setAlignment("A1:E20", { horizontal: "center", vertical: "center", wrap: true });
 Sheet.setNumberFormat("E2:E20", "#,##0");
+Sheet.setBorder("A1:E20", { color: "#D9E2EC", style: "Thin" });
 return Sheet.done("Applied table formatting");
 ```
 
@@ -71,12 +70,14 @@ return Sheet.done("Created summary sheet");
 
 ```js
 Sheet.freezeRows(2);
-return Sheet.done("Frozen title and header rows");
+Sheet.freezeColumns(1);
+Sheet.freezeAt("C3");
+return Sheet.done("Updated freeze panes");
 ```
 
-## Raw API Escape Hatch
+## Raw Escape Hatch
 
-Use raw API only when a helper does not exist. Wrap it in `Sheet.raw` so OfficeWeaver can still record the step.
+Use `Sheet.raw` only when no helper exists. Chart creation is one example.
 
 ```js
 Sheet.raw("customChart", { range: "A1:E10" }, function (Api, Sheet) {
@@ -84,20 +85,4 @@ Sheet.raw("customChart", { range: "A1:E10" }, function (Api, Sheet) {
   return ws.AddChart("'Sheet1'!$A$1:$E$10", false, "bar", 2, 4320000, 2520000, 6, 0, 1, 0);
 });
 return Sheet.done("Added chart");
-```
-
-Wrong:
-
-```js
-ws.InsertRows(1, 2);        // wrong
-ws.SetFreezePanes(2);       // wrong
-range.SetFontBold(true);    // wrong
-```
-
-Correct:
-
-```js
-Sheet.insertRows(1, 2);
-Sheet.freezeRows(2);
-Sheet.setFont("A1:E1", { bold: true });
 ```

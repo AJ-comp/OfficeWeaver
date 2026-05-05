@@ -1,44 +1,42 @@
----
+Ôªø---
 source_id: spreadsheet.ApiRange.SetAutoFilter
+engine: onlyoffice
+version: 9.3.1.2
+version_family: 9.3
 product: spreadsheet
+kind: spreadsheet
 object: ApiRange
 method: SetAutoFilter
-title: ApiRange.SetAutoFilter
-source_url: https://api.onlyoffice.com/docs/office-api/usage-api/spreadsheet-api/ApiRange/Methods/SetAutoFilter/
 keywords:
   - autofilter
   - filter
   - filtering
-  - ?ÑÌÑ∞
-  - ?êÎèô?ÑÌÑ∞
 ---
 
-# ApiRange.SetAutoFilter
+# AutoFilter With Sheet.raw
 
-Use `SetAutoFilter` to add an AutoFilter to a range.
+OfficeWeaver does not yet expose a first-class AutoFilter helper. Use `Sheet.raw` so the operation is still traced.
 
-## Syntax
+## Enable AutoFilter
 
 ```js
-range.SetAutoFilter(Field, Criteria1, Operator, Criteria2, VisibleDropDown);
+Sheet.raw("enableAutoFilter", { range: "A1:E9" }, function (Api, Sheet) {
+  const table = Sheet.range("A1:E9");
+  table.SetAutoFilter();
+  return { range: "A1:E9" };
+});
+
+return Sheet.done("Enabled AutoFilter for the table");
 ```
 
-Most arguments are optional. `Field` is 1-based from the left side of the selected range.
-
-## Correct Example
+## Filter Values
 
 ```js
-const ws = Sheet.sheet();
-const table = ws.GetRange("A1:E9");
-table.SetAutoFilter();
-return { summary: "Enabled AutoFilter for the table", changed: true };
-```
+Sheet.raw("filterValues", { range: "A1:A5" }, function (Api, Sheet) {
+  const range = Sheet.range("A1:A5");
+  range.SetAutoFilter(1, ["value2", "value3"], "xlFilterValues");
+  return { range: "A1:A5", values: ["value2", "value3"] };
+});
 
-## Filter Values Example
-
-```js
-const ws = Sheet.sheet();
-const range = ws.GetRange("A1:A5");
-range.SetAutoFilter(1, ["value2", "value3"], "xlFilterValues");
-return { summary: "Applied value filter", changed: true };
+return Sheet.done("Applied value filter");
 ```

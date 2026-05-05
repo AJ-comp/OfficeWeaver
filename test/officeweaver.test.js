@@ -204,8 +204,315 @@ function runMacro(code) {
   }
 }
 
+class MockParagraph {
+  constructor(text = '') {
+    this.text = text;
+    this.styles = {};
+    this.numbering = null;
+  }
+
+  AddText(text) {
+    this.text += String(text);
+    return { text: String(text) };
+  }
+
+  RemoveAllElements() {
+    this.text = '';
+    return true;
+  }
+
+  GetText() {
+    return this.text;
+  }
+
+  SetBold(value) {
+    this.styles.bold = value;
+    return this;
+  }
+
+  SetItalic(value) {
+    this.styles.italic = value;
+    return this;
+  }
+
+  SetUnderline(value) {
+    this.styles.underline = value;
+    return this;
+  }
+
+  SetColor(value) {
+    this.styles.color = value;
+    return this;
+  }
+
+  SetFontSize(value) {
+    this.styles.fontSize = value;
+    return this;
+  }
+
+  SetFontFamily(value) {
+    this.styles.fontFamily = value;
+    return this;
+  }
+
+  SetSpacingAfter(value) {
+    this.styles.spacingAfter = value;
+    return true;
+  }
+
+  SetSpacingBefore(value) {
+    this.styles.spacingBefore = value;
+    return true;
+  }
+
+  SetJc(value) {
+    this.styles.align = value;
+    return true;
+  }
+
+  SetKeepNext(value) {
+    this.styles.keepNext = value;
+    return true;
+  }
+
+  SetKeepLines(value) {
+    this.styles.keepLines = value;
+    return true;
+  }
+
+  SetStyle(value) {
+    this.styles.style = value;
+    return true;
+  }
+
+  SetNumbering(value) {
+    this.numbering = value;
+    return true;
+  }
+
+  SetContextualSpacing(value) {
+    this.styles.contextualSpacing = value;
+    return true;
+  }
+}
+
+class MockTextRange {
+  constructor(doc, start, end) {
+    this.doc = doc;
+    this.start = start;
+    this.end = end;
+    this.styles = {};
+  }
+
+  SetBold(value) {
+    this.styles.bold = value;
+    return this;
+  }
+
+  SetItalic(value) {
+    this.styles.italic = value;
+    return this;
+  }
+
+  SetUnderline(value) {
+    this.styles.underline = value;
+    return this;
+  }
+
+  SetColor(value) {
+    this.styles.color = value;
+    return this;
+  }
+
+  SetFontSize(value) {
+    this.styles.fontSize = value;
+    return this;
+  }
+
+  SetFontFamily(value) {
+    this.styles.fontFamily = value;
+    return this;
+  }
+}
+
+class MockStyle {
+  constructor(name, type) {
+    this.name = name;
+    this.type = type;
+    this.tablePr = {
+      SetTableBorderAll: (...args) => {
+        this.border = args;
+        return true;
+      }
+    };
+  }
+
+  SetBasedOn(style) {
+    this.basedOn = style;
+  }
+
+  GetTablePr() {
+    return this.tablePr;
+  }
+}
+
+class MockTableCell {
+  constructor() {
+    this.paragraphs = [];
+    this.shading = null;
+  }
+
+  SetShd(type, r, g, b, isAuto) {
+    this.shading = { type, r, g, b, isAuto };
+    return true;
+  }
+}
+
+class MockTable {
+  constructor(rows, columns) {
+    this.rows = rows;
+    this.columns = columns;
+    this.cells = Array.from({ length: rows }, () => Array.from({ length: columns }, () => new MockTableCell()));
+    this.width = null;
+    this.style = null;
+  }
+
+  SetWidth(type, value) {
+    this.width = { type, value };
+  }
+
+  SetStyle(style) {
+    this.style = style;
+  }
+
+  SetTableLook(...args) {
+    this.look = args;
+  }
+
+  GetCell(row, column) {
+    return this.cells[row] && this.cells[row][column] ? this.cells[row][column] : null;
+  }
+
+  AddElement(cell, index, paragraph) {
+    cell.paragraphs.splice(index, 0, paragraph);
+    return true;
+  }
+}
+
+class MockDocument {
+  constructor() {
+    this.elements = [new MockParagraph('Hello world')];
+    this.ranges = [];
+    this.styles = {};
+    this.replacements = [];
+  }
+
+  GetElement(index) {
+    return this.elements[index] || null;
+  }
+
+  Push(element) {
+    this.elements.push(element);
+    return true;
+  }
+
+  AddElement(index, element) {
+    this.elements.splice(index, 0, element);
+    return true;
+  }
+
+  RemoveAllElements() {
+    this.elements = [new MockParagraph()];
+    return true;
+  }
+
+  GetRange(start, end) {
+    const range = new MockTextRange(this, start, end);
+    this.ranges.push(range);
+    return range;
+  }
+
+  Search(text, matchCase) {
+    const needle = matchCase ? String(text) : String(text).toLowerCase();
+    return this.elements.filter((element) => {
+      const value = matchCase ? (element.text || '') : (element.text || '').toLowerCase();
+      return value.includes(needle);
+    });
+  }
+
+  SearchAndReplace(props) {
+    this.replacements.push(props);
+    this.elements.forEach((element) => {
+      if (typeof element.text === 'string') {
+        element.text = element.text.split(props.searchString).join(props.replaceString);
+      }
+    });
+    return true;
+  }
+
+  CreateStyle(name, type = 'paragraph') {
+    const style = new MockStyle(name, type);
+    this.styles[name] = style;
+    return style;
+  }
+
+  GetStyle(name) {
+    return this.styles[name] || new MockStyle(name, 'paragraph');
+  }
+
+  CreateNumbering(type = 'bullet') {
+    return {
+      type,
+      GetLevel(level) {
+        return { type, level };
+      }
+    };
+  }
+
+  GetAllParagraphs() {
+    return this.elements.filter((element) => element instanceof MockParagraph);
+  }
+}
+
+function createTextApi() {
+  const doc = new MockDocument();
+  return {
+    doc,
+    GetDocument() {
+      return doc;
+    },
+    CreateParagraph() {
+      return new MockParagraph();
+    },
+    CreateTable(rows, columns) {
+      return new MockTable(rows, columns);
+    },
+    HexColor(hex) {
+      return { hex };
+    },
+    RGB(r, g, b) {
+      return { r, g, b };
+    }
+  };
+}
+
+function runTextMacro(code) {
+  const api = createTextApi();
+  global.Api = api;
+
+  try {
+    const command = OfficeWeaver.buildTextDocumentMacroCommand(code, {
+      engine: 'onlyoffice',
+      version: '9.3.1.2'
+    });
+    return { api, result: command() };
+  } finally {
+    delete global.Api;
+  }
+}
+
 assert.equal(OfficeWeaver.resolveVersionFamily('onlyoffice', '9.3.1.2'), '9.3');
-assert.equal(OfficeWeaver.resolveVersionFamily('onlyoffice', '9.4.0'), '9.4');
+assert.equal(OfficeWeaver.resolveVersionFamily('onlyoffice', '10.0.0'), '10.0.0');
 assert.equal(
   OfficeWeaver.normalizeSpreadsheetMacroCode('range.SetFontBold(true); range.SetBackgroundColor(color);'),
   'range.SetBold(true); range.SetFillColor(color);'
@@ -261,6 +568,64 @@ return Sheet.done("raw done");
   assert.equal(result.applied, 1);
   assert.equal(result.summary, 'raw done');
   assert.deepEqual(result.outcomes[0].result, { ok: true, name: 'Sheet1' });
+}
+
+{
+  const { api, result } = runTextMacro(`
+Doc.setParagraphText(0, "Quarterly report");
+Doc.styleParagraph(0, { bold: true, color: "#1F4E79", size: 32, align: "center" });
+Doc.addParagraph("Prepared by OfficeWeaver", { italic: true, spacingAfter: 160 });
+Doc.replace("OfficeWeaver", "Mythosia", { matchCase: true });
+return Doc.done("Document title updated");
+`);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.kind, 'word');
+  assert.equal(result.applied, 4);
+  assert.equal(result.summary, 'Document title updated');
+  assert.equal(api.doc.elements[0].text, 'Quarterly report');
+  assert.equal(api.doc.elements[0].styles.bold, true);
+  assert.deepEqual(api.doc.elements[0].styles.color, { hex: '#1F4E79' });
+  assert.equal(api.doc.elements[1].text, 'Prepared by Mythosia');
+  assert.equal(result.outcomes[3].result, true);
+}
+
+{
+  const { api, result } = runTextMacro(`
+Doc.addHeading("Sales Summary", 1, { color: "#2C3E50" });
+Doc.addList(["Revenue grew", "Costs remained stable"], { type: "bullet" });
+Doc.addTable([
+  ["Metric", "Value"],
+  ["Revenue", "120000"],
+  ["Cost", "45000"]
+], { headerFill: "#1F4E79", borderColor: "#D9E2EC", bandRows: true });
+return Doc.done("Report structure created");
+`);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.applied, 3);
+  assert.equal(api.doc.elements[1].text, 'Sales Summary');
+  assert.equal(api.doc.elements[1].styles.bold, true);
+  assert.equal(api.doc.elements[2].numbering.type, 'bullet');
+  const table = api.doc.elements[4];
+  assert.equal(table.rows, 3);
+  assert.equal(table.columns, 2);
+  assert.equal(table.cells[0][0].paragraphs[0].text, 'Metric');
+  assert.deepEqual(table.cells[0][0].shading, { type: 'clear', r: 31, g: 78, b: 121, isAuto: false });
+}
+
+{
+  const { api, result } = runTextMacro(`
+Doc.addParagraph("ok");
+Doc.styleParagraph(0, { background: "not-a-color" });
+Doc.addParagraph("should not run");
+`);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.applied, 1);
+  assert.equal(result.stopped_at, 2);
+  assert.match(result.outcomes[1].error, /invalid_color/);
+  assert.equal(api.doc.elements.length, 2);
 }
 
 console.log('OfficeWeaver tests passed');

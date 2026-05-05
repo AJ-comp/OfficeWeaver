@@ -1,7 +1,7 @@
 {
   "name": "@mythosia/officeweaver",
-  "version": "0.1.0",
-  "description": "AI-friendly office automation runtime with traced ONLYOFFICE spreadsheet helpers and bundled RAG-ready manuals.",
+  "version": "0.2.0",
+  "description": "AI-friendly office automation runtime with traced ONLYOFFICE spreadsheet and word helpers plus bundled RAG-ready manuals.",
   "type": "commonjs",
   "main": "src/officeweaver.js",
   "types": "src/officeweaver.d.ts",
@@ -32,6 +32,8 @@
     "onlyoffice",
     "office",
     "spreadsheet",
+    "word",
+    "document",
     "macro",
     "llm",
     "ai",
@@ -44,6 +46,7 @@
   "files": [
     "src",
     "manuals",
-    "README*.md"
+    "README*.md",
+    "CHANGELOG.md"
   ]
 }

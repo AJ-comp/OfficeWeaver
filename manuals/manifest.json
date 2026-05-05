@@ -1,9 +1,10 @@
 {
-  "officeweaver_version": "0.1.0",
+  "officeweaver_version": "0.2.0",
   "engines": {
     "onlyoffice": {
       "version": "9.3.1.2",
-      "version_family": "9.3"
+      "version_family": "9.3",
+      "kinds": ["spreadsheet", "word"]
     }
   },
   "policy": "RAG consumers should filter by engine, version_family, and kind."

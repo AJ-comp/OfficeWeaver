@@ -1,8 +1,8 @@
 {
   "engine": "onlyoffice",
   "version_family": "9.3",
-  "kinds": ["spreadsheet"],
-  "namespaces": ["Sheet"],
+  "kinds": ["spreadsheet", "word"],
+  "namespaces": ["Sheet", "Doc"],
   "helpers": [
     "setValue",
     "setFormula",
@@ -29,5 +29,49 @@
     "unfreeze",
     "raw",
     "done"
-  ]
+  ],
+  "helpers_by_kind": {
+    "spreadsheet": [
+      "setValue",
+      "setFormula",
+      "setNumberFormat",
+      "setFont",
+      "setFill",
+      "setBorder",
+      "setAlignment",
+      "merge",
+      "unmerge",
+      "insertRows",
+      "deleteRows",
+      "insertColumns",
+      "deleteColumns",
+      "setColumnWidth",
+      "setRowHeight",
+      "addSheet",
+      "renameSheet",
+      "deleteSheet",
+      "setActiveSheet",
+      "freezeRows",
+      "freezeColumns",
+      "freezeAt",
+      "unfreeze",
+      "raw",
+      "done"
+    ],
+    "word": [
+      "clear",
+      "setParagraphText",
+      "addParagraph",
+      "insertParagraph",
+      "addHeading",
+      "styleParagraph",
+      "styleRange",
+      "search",
+      "replace",
+      "addList",
+      "addTable",
+      "raw",
+      "done"
+    ]
+  }
 }

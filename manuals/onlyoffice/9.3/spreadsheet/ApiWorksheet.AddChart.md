@@ -7,8 +7,6 @@ product: spreadsheet
 kind: spreadsheet
 object: ApiWorksheet
 method: AddChart
-title: ApiWorksheet.AddChart
-source_url: https://api.onlyoffice.com/docs/office-api/usage-api/spreadsheet-api/ApiWorksheet/Methods/AddChart/
 keywords:
   - chart
   - graph
@@ -23,39 +21,9 @@ wrong_patterns:
   - chart.AddSeries
 ---
 
-# ApiWorksheet.AddChart
+# Charts With Sheet.raw
 
-Use `worksheet.AddChart(...)` to create a chart from a spreadsheet range.
-
-Do not use ExcelJS, Office.js, or VBA-style chart APIs. In ONLYOFFICE Spreadsheet API 9.3, common chart creation should start from the worksheet.
-
-## Syntax
-
-```js
-worksheet.AddChart(
-  sDataRange,
-  bInRows,
-  sType,
-  nStyleIndex,
-  nExtX,
-  nExtY,
-  nFromCol,
-  nColOffset,
-  nFromRow,
-  nRowOffset
-);
-```
-
-## Important Parameters
-
-- `sDataRange`: range string including the sheet name, for example `"'Sheet1'!$A$1:$E$5"`.
-- `bInRows`: `true` reads series from rows. `false` reads series from columns.
-- `sType`: chart type string such as `"bar"`, `"bar3D"`, `"lineNormal"`, `"pie"`, or `"doughnut"`.
-- `nStyleIndex`: chart style index, often `1` to `48`.
-- `nExtX`, `nExtY`: chart size in EMU. A practical approximation is `centimeters * 360000`.
-- `nFromCol`, `nFromRow`: zero-based anchor column and row.
-
-## Correct Example
+OfficeWeaver does not yet expose a first-class chart helper. Use `Sheet.raw` for chart creation so the operation still appears as a traced step.
 
 ```js
 Sheet.raw("addChart", { range: "A1:E5", type: "bar" }, function (Api, Sheet) {
@@ -83,13 +51,11 @@ Sheet.raw("addChart", { range: "A1:E5", type: "bar" }, function (Api, Sheet) {
 return Sheet.done("Added a sales chart");
 ```
 
-## Common Mistakes
+Important parameters inside the raw call:
 
-```js
-// Wrong
-const chart = Api.CreateChart(Api.ChartType.COLUMN);
-chart.AddSeries(...);
+- Data range must include the sheet name, for example `"'Sheet1'!$A$1:$E$5"`.
+- `false` reads series from columns. `true` reads series from rows.
+- Chart type strings include `"bar"`, `"bar3D"`, `"lineNormal"`, `"pie"`, and `"doughnut"`.
+- Chart size uses EMU. A practical approximation is `centimeters * 360000`.
 
-// Correct
-const chart = ws.AddChart("'Sheet1'!$A$1:$E$5", false, "bar", 2, 12 * 360000, 7 * 360000, 6, 0, 1, 0);
-```
+Do not use `Api.CreateChart`, `Api.ChartType.COLUMN`, or `chart.AddSeries` for ONLYOFFICE spreadsheet charts.

@@ -6,7 +6,7 @@ OfficeWeaver is a small JavaScript runtime for building AI-friendly office docum
 
 It sits between an LLM-generated macro and an editor API such as ONLYOFFICE. The goal is simple: let the model edit documents with a stable helper API, while the host application receives reliable per-step execution results.
 
-OfficeWeaver is currently focused on ONLYOFFICE Spreadsheet macros. The package also includes versioned manuals that are ready to be indexed for RAG, so an application can retrieve the right API notes for the editor version it is running.
+OfficeWeaver currently includes traced helpers for ONLYOFFICE Spreadsheet and Word/text-document macros. The package also includes versioned manuals that are ready to be indexed for RAG, so an application can retrieve the right API notes for the editor version it is running.
 
 ## The Problem
 
@@ -15,7 +15,7 @@ Office editors expose powerful JavaScript APIs, but raw APIs are not easy for LL
 Common problems:
 
 - Models mix up similar APIs from ExcelJS, Office.js, VBA, Google Apps Script, and ONLYOFFICE.
-- A model may write `SetFontBold`, `GetValues`, `SetFreezePanes`, or `Api.CreateChart` even when those names do not exist in the current editor.
+- A model may write method names from the wrong office automation library or from a different editor version.
 - A raw JavaScript macro usually fails as one big script. The host can see that it failed, but not which logical edit succeeded before the failure.
 - If a formula is written, the agent often needs the evaluated cell value to verify whether the formula worked.
 - Each application ends up writing its own helper layer, retry logging, manuals, and editor-version notes.
@@ -78,7 +78,7 @@ This makes retries much easier. The agent can see what already happened and what
 ```text
 User request
   -> host app asks LLM for a macro
-  -> LLM writes Sheet.* code
+  -> LLM writes Sheet.* or Doc.* code
   -> OfficeWeaver executes the helpers
   -> ONLYOFFICE changes the document
   -> OfficeWeaver returns structured outcomes
@@ -134,10 +134,11 @@ OfficeWeaver exposes a global object:
 OfficeWeaver
 ```
 
-The generated spreadsheet macro receives a helper namespace:
+Generated macros receive a helper namespace:
 
 ```js
-Sheet
+Sheet // spreadsheets
+Doc   // Word/text documents
 ```
 
 ## Running A Spreadsheet Macro
@@ -160,9 +161,30 @@ const result = command();
 
 Inside ONLYOFFICE, `command()` expects the editor `Api` object to be available. OfficeWeaver uses that object internally.
 
+## Running A Word Macro
+
+For ONLYOFFICE text documents, use `buildTextDocumentMacroCommand` or the alias `buildWordMacroCommand`.
+
+```js
+const command = OfficeWeaver.buildWordMacroCommand(`
+Doc.addHeading("Sales Performance Report", 1, { color: "#1F4E79", align: "center" });
+Doc.addParagraph("Prepared for management", { italic: true, spacingAfter: 160 });
+Doc.addTable([
+  ["Metric", "Value"],
+  ["Revenue", "120000"]
+], { headerFill: "#1F4E79", borderColor: "#D9E2EC" });
+return Doc.done("Created report structure");
+`, {
+  engine: "onlyoffice",
+  version: "9.3.1.2"
+});
+
+const result = command();
+```
+
 ## What The LLM Should Use
 
-For common spreadsheet work, ask the LLM to use `Sheet.*` helpers first.
+For common spreadsheet work, ask the LLM to use `Sheet.*` helpers first. For Word/text documents, ask it to use `Doc.*` helpers first.
 
 ### Values And Formulas
 
@@ -228,7 +250,7 @@ However, raw docs alone do not solve execution observability:
 OfficeWeaver combines two ideas:
 
 - RAG manuals tell the model what exists.
-- `Sheet.*` helpers make common actions traceable and safer to retry.
+- `Sheet.*` and `Doc.*` helpers make common actions traceable and safer to retry.
 
 ## Manuals For RAG
 
@@ -246,6 +268,11 @@ manuals/
         ApiWorksheet.AddChart.md
         examples.ModernTable.md
         errors.CommonWrongApis.md
+      word/
+        OfficeWeaver.DocHelpers.md
+        Doc.ParagraphsAndHeadings.md
+        Doc.Tables.md
+        examples.ModernReport.md
 ```
 
 Host apps should read manuals directly from the installed package. Do not maintain a second hand-edited copy in the app project.
@@ -254,19 +281,20 @@ Recommended metadata filters:
 
 - `engine`: `onlyoffice`
 - `version_family`: `9.3`
-- `kind`: `spreadsheet`
+- `kind`: `spreadsheet` or `word`
 
 When OfficeWeaver includes another editor version, that version appears under its own version-family folder, for example:
 
 ```text
-manuals/onlyoffice/9.4/spreadsheet/
+manuals/onlyoffice/<version-family>/spreadsheet/
+manuals/onlyoffice/<version-family>/word/
 ```
 
 If your application only wants latest docs, delete older embedded chunks and index the latest manifest version again.
 
 ## Version Matching
 
-Office APIs are version-sensitive. A helper that works for ONLYOFFICE 9.3 may need a different implementation for ONLYOFFICE 9.4 or another office suite.
+Office APIs are version-sensitive. A helper that works for ONLYOFFICE 9.3 may need a different implementation for a later ONLYOFFICE release or another office suite.
 
 When generating or executing macros, pass the editor engine and version you are actually running:
 
@@ -320,6 +348,27 @@ Current helper list:
 
 For operations that are not listed here, use `Sheet.raw(...)` to keep the operation visible in `outcomes`.
 
+## Current Word Helpers
+
+Current helper list:
+
+- `Doc.clear()`
+- `Doc.setParagraphText(index, text)`
+- `Doc.addParagraph(text, options?)`
+- `Doc.insertParagraph(index, text, options?)`
+- `Doc.addHeading(text, level?, options?)`
+- `Doc.styleParagraph(index, options)`
+- `Doc.styleRange(start, end, options)`
+- `Doc.search(text, matchCase?)`
+- `Doc.replace(search, replacement, options?)`
+- `Doc.addList(items, options?)`
+- `Doc.addTable(rows, options?)`
+- `Doc.raw(action, details, fn)`
+- `Doc.outcomes()`
+- `Doc.done(summary, data?)`
+
+For operations that are not listed here, use `Doc.raw(...)` to keep the operation visible in `outcomes`.
+
 ## How A Host App Integrates It
 
 A typical app integration has four parts:
@@ -327,7 +376,7 @@ A typical app integration has four parts:
 1. Install the package.
 2. Copy `src/officeweaver.js` into the editor plugin build output.
 3. Index `manuals/` into the app's vector database.
-4. Register one macro execution tool that runs generated `Sheet.*` code through OfficeWeaver.
+4. Register one macro execution tool that runs generated `Sheet.*` or `Doc.*` code through OfficeWeaver.
 
 For example:
 
@@ -335,20 +384,20 @@ For example:
 Application startup
   -> read node_modules/@mythosia/officeweaver/manuals/manifest.json
   -> if embedded version differs, delete old OfficeWeaver chunks
-  -> index manuals/onlyoffice/9.3/spreadsheet/*.md
+  -> index manuals/onlyoffice/9.3/spreadsheet/*.md and manuals/onlyoffice/9.3/word/*.md
 
 Chat request
   -> retrieve relevant RAG chunks
-  -> ask LLM to write Sheet.* macro code
+  -> ask LLM to write Sheet.* or Doc.* macro code
   -> execute with OfficeWeaver
   -> if result.ok is false, send result.outcomes back for retry
 ```
 
 ## Current Limitations
 
-- The runtime currently includes spreadsheet helpers for ONLYOFFICE 9.3/9.4 version families.
-- Document, presentation, and HWP helpers are not included in this package yet.
-- Complex features such as advanced charts may still need `Sheet.raw` and RAG references.
+- The runtime currently includes spreadsheet and Word/text-document helpers for the ONLYOFFICE 9.3 version family.
+- Presentation and HWP helpers are not included in this package yet.
+- Complex features such as advanced charts or advanced Word layout may still need `Sheet.raw`, `Doc.raw`, and RAG references.
 - OfficeWeaver does not replace the host app's draft, save, permission, or undo policy.
 
 ## Naming
@@ -364,3 +413,10 @@ Generated spreadsheet macros should use:
 ```js
 Sheet.*
 ```
+
+Generated Word/text-document macros should use:
+
+```js
+Doc.*
+```
+
