@@ -1,15 +1,49 @@
 {
   "name": "@mythosia/officeweaver",
   "version": "0.1.0",
-  "description": "AI-friendly ONLYOFFICE automation runtime with traced spreadsheet helpers.",
+  "description": "AI-friendly office automation runtime with traced ONLYOFFICE spreadsheet helpers and bundled RAG-ready manuals.",
   "type": "commonjs",
   "main": "src/officeweaver.js",
+  "types": "src/officeweaver.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/officeweaver.d.ts",
+      "require": "./src/officeweaver.js",
+      "default": "./src/officeweaver.js"
+    },
+    "./manuals/*": "./manuals/*",
+    "./package.json": "./package.json"
+  },
   "scripts": {
-    "check": "node --check src/officeweaver.js"
+    "check": "node --check src/officeweaver.js && node --check test/officeweaver.test.js",
+    "test": "node test/officeweaver.test.js",
+    "prepack": "npm run check && npm test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AJ-comp/OfficeWeaver.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AJ-comp/OfficeWeaver/issues"
+  },
+  "homepage": "https://github.com/AJ-comp/OfficeWeaver#readme",
+  "license": "MIT",
+  "keywords": [
+    "onlyoffice",
+    "office",
+    "spreadsheet",
+    "macro",
+    "llm",
+    "ai",
+    "manuals",
+    "automation"
+  ],
+  "engines": {
+    "node": ">=18"
   },
   "files": [
     "src",
-    "rag",
-    "README.md"
+    "manuals",
+    "README*.md"
   ]
 }

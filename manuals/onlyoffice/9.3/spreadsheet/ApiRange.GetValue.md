@@ -1,6 +1,10 @@
----
+ï»¿---
 source_id: spreadsheet.ApiRange.GetValue
+engine: onlyoffice
+version: 9.3.1.2
+version_family: 9.3
 product: spreadsheet
+kind: spreadsheet
 object: ApiRange
 method: GetValue
 title: ApiRange.GetValue
@@ -9,7 +13,8 @@ keywords:
   - value
   - values
   - read cells
-  - ?€ ê°?  - ê°??½ê¸°
+  - read range
+  - cell value
 wrong_patterns:
   - GetValues
 ---
@@ -26,19 +31,20 @@ range.GetValue();
 
 ## Returns
 
-For a single cell it returns a string-like scalar. For a multi-cell range it can return a two-dimensional array.
+For a single cell, `GetValue()` returns the cell value. For a multi-cell range, it may return a two-dimensional array depending on the editor version and range shape.
 
 ## Correct Example
 
 ```js
-const ws = Sheet.sheet();
-const values = ws.GetRange("A1:E9").GetValue();
-return { summary: "Read range values", values };
+Sheet.raw("readRange", { range: "A1:E9" }, function (Api, Sheet) {
+  const ws = Sheet.sheet();
+  return ws.GetRange("A1:E9").GetValue();
+});
+
+return Sheet.done("Read range values");
 ```
 
-## Common Mistakes
-
-Do not use ExcelJS-style `GetValues()`.
+## Common Mistake
 
 ```js
 // Wrong

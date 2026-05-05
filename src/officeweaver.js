@@ -302,7 +302,7 @@
             '  unfreeze: function (sheetName) { return __owStep("unfreeze", { sheet: sheetName || null }, function () { var ws = __owResolveSheetForView(sheetName); ws.GetFreezePanes().Unfreeze(); try { Api.SetFreezePanesType(null); } catch (_) {} return { unfrozen: true }; }); },',
             '  raw: function (action, details, fn) { if (typeof fn !== "function") throw new Error("raw_function_required"); return __owStep(action || "raw", details || {}, function () { return { result: fn(Api, Sheet) }; }); },',
             '  outcomes: function () { return __owOutcomes.slice(); },',
-            '  done: function (summary, data) { return { summary: String(summary || "Macro completed"), changed: true, data: __owSerializable(data || null) }; }',
+            '  done: function (summary, data) { return { summary: String(summary || "Macro completed"), changed: true, data: __owSerializable(data === undefined ? null : data) }; }',
             '};',
             'try {',
             '  var __owUserResult = (function (Api, Sheet) {',
